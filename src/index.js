@@ -597,9 +597,10 @@ function findChannel(guild, name) {
 
 function isStaffMember(interaction) {
   if (interaction.guild.ownerId === interaction.member.id) return true;
+  if (interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return true;
   return interaction.member.roles.cache.some((role) =>
     ["Owner", "Admin", "Moderator"].includes(
-      role.name.replace(/^(👑|🛡️|🔨)\s*/, "")
+      role.name.replace(/^(👑|🛡️|🔨)\s*/, "").trim()
     )
   );
 }
