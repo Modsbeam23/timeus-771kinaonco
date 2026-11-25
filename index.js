@@ -82,7 +82,7 @@ async function getOrCreateCategory(guild, name) {
   return category;
 }
 
-async function setCategoryPermissions(category, guild, memberRole, unverifiedRole) {
+async function setCategoryPermissions(category, guild, memberRole, unverifiedRole, botRole) {
   const everyone = guild.roles.everyone;
   const staffRoles = ["Owner", "Admin", "Moderator"]
     .map((name) => findRoleByBase(guild, name))
@@ -131,6 +131,22 @@ async function setCategoryPermissions(category, guild, memberRole, unverifiedRol
         : [],
     });
   }
+
+  overwrites.push({
+    id: botRole.id,
+    allow: [
+      PermissionFlagsBits.ViewChannel,
+      PermissionFlagsBits.ReadMessageHistory,
+      PermissionFlagsBits.SendMessages,
+      PermissionFlagsBits.AddReactions,
+      PermissionFlagsBits.EmbedLinks,
+      PermissionFlagsBits.AttachFiles,
+      PermissionFlagsBits.Connect,
+      PermissionFlagsBits.Speak,
+      PermissionFlagsBits.ManageMessages,
+      PermissionFlagsBits.ManageChannels,
+    ],
+  });
 
   for (const role of staffRoles) {
     overwrites.push({
@@ -373,6 +389,46 @@ async function setupServer(guild) {
   await getOrCreateRole(guild, "🔒 Unverified", { color: Colors.DarkGrey, hoist: false });
   await getOrCreateRole(guild, "🧪 Mod Tester", { color: Colors.Purple, hoist: false });
   await getOrCreateRole(guild, "🔔 Leak Alerts", { color: Colors.Gold, hoist: false });
+  const botRole = await getOrCreateRole(guild, "🤖 ModsL Bot", {
+    color: Colors.DarkBlue,
+    hoist: true,
+    permissions: [
+      PermissionFlagsBits.ManageRoles,
+      PermissionFlagsBits.ManageChannels,
+      PermissionFlagsBits.ManageMessages,
+      PermissionFlagsBits.ViewChannel,
+      PermissionFlagsBits.ReadMessageHistory,
+      PermissionFlagsBits.SendMessages,
+      PermissionFlagsBits.AddReactions,
+      PermissionFlagsBits.EmbedLinks,
+      PermissionFlagsBits.AttachFiles,
+      PermissionFlagsBits.Connect,
+      PermissionFlagsBits.Speak,
+    ],
+  });
+  await botRole.setPermissions([
+    PermissionFlagsBits.ManageRoles,
+    PermissionFlagsBits.ManageChannels,
+    PermissionFlagsBits.ManageMessages,
+    PermissionFlagsBits.ViewChannel,
+    PermissionFlagsBits.ReadMessageHistory,
+    PermissionFlagsBits.SendMessages,
+    PermissionFlagsBits.AddReactions,
+    PermissionFlagsBits.EmbedLinks,
+    PermissionFlagsBits.AttachFiles,
+    PermissionFlagsBits.Connect,
+    PermissionFlagsBits.Speak,
+  ]);
+  const botMember = await guild.members.fetch(guild.client.user.id);
+  const botIntegrationRole = botMember.roles.cache.find(
+    (role) => role.managed && role.tags?.botId === guild.client.user.id
+  );
+  if (botIntegrationRole && botIntegrationRole.position > 1) {
+    await botRole.setPosition(botIntegrationRole.position - 1);
+  }
+  if (!botMember.roles.cache.has(botRole.id)) {
+    await botMember.roles.add(botRole, "ModsL bot role setup");
+  }
 
   const obsoleteMemberRole = guild.roles.cache.find((role) => role.name === "BeamNG Member");
   if (obsoleteMemberRole) {
@@ -387,11 +443,11 @@ async function setupServer(guild) {
 
   await getOrCreateRole(guild, "🔒 Unverified", { color: Colors.DarkGrey, hoist: false });
   const unverified = findRoleByBase(guild, "Unverified");
-  await setCategoryPermissions(info, guild, member, unverified);
-  await setCategoryPermissions(community, guild, member, unverified);
-  await setCategoryPermissions(mods, guild, member, unverified);
-  await setCategoryPermissions(staff, guild, member, unverified);
-  await setCategoryPermissions(voice, guild, member, unverified);
+  await setCategoryPermissions(info, guild, member, unverified, botRole);
+  await setCategoryPermissions(community, guild, member, unverified, botRole);
+  await setCategoryPermissions(mods, guild, member, unverified, botRole);
+  await setCategoryPermissions(staff, guild, member, unverified, botRole);
+  await setCategoryPermissions(voice, guild, member, unverified, botRole);
 
   await guild.members.fetch();
   for (const [, guildMember] of guild.members.cache) {
@@ -435,11 +491,11 @@ async function setupServer(guild) {
   await leakChannel.permissionOverwrites.edit(guild.roles.everyone, {
     SendMessages: false,
     AddReactions: false,
-  }).catch(() => null);
+  });
   await leakChannel.permissionOverwrites.edit(member, {
     SendMessages: false,
-    AddReactions: false,
-  }).catch(() => null);
+    AddReactions: true,
+  });
   await modUpdates.permissionOverwrites.edit(guild.roles.everyone, {
     SendMessages: false,
     AddReactions: false,
@@ -597,9 +653,10 @@ function findChannel(guild, name) {
 
 function isStaffMember(interaction) {
   if (interaction.guild.ownerId === interaction.member.id) return true;
+  if (interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return true;
   return interaction.member.roles.cache.some((role) =>
     ["Owner", "Admin", "Moderator"].includes(
-      role.name.replace(/^(👑|🛡️|🔨)\s*/, "")
+      role.name.replace(/^(👑|🛡️|🔨)\s*/, "").trim()
     )
   );
 }
@@ -633,7 +690,9 @@ async function publishMod(interaction, name, link, description, imageUrl = null)
     embed.setImage(imageUrl);
   }
 
-  await target.send({ embeds: [embed] });
+  const publishedMessage = await target.send({ embeds: [embed] });
+  await publishedMessage.react("❤️");
+  await publishedMessage.react("👎");
   await interaction.reply({
     content: `Mod submitted to ${target}.`,
     flags: MessageFlags.Ephemeral,
