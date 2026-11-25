@@ -20,12 +20,21 @@ const body = commands.map((command) => command.toJSON());
 
 if (guildIds.length > 0) {
   const uniqueGuildIds = [...new Set(guildIds)];
+  const failedGuildIds = [];
   for (const guildId of uniqueGuildIds) {
     if (!/^\d{17,20}$/.test(guildId)) {
       throw new Error(`Invalid Discord guild ID: ${guildId}`);
     }
-    await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body });
-    console.log(`Registered slash commands in guild ${guildId}.`);
+    try {
+      await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body });
+      console.log(`Registered slash commands in guild ${guildId}.`);
+    } catch (error) {
+      console.error(`Could not register commands in guild ${guildId}:`, error);
+      failedGuildIds.push(guildId);
+    }
+  }
+  if (failedGuildIds.length > 0) {
+    throw new Error(`Command registration failed for guilds: ${failedGuildIds.join(", ")}`);
   }
 } else {
   await rest.put(Routes.applicationCommands(clientId), { body });

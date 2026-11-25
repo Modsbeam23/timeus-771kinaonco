@@ -1,22 +1,17 @@
 import {
   PermissionFlagsBits,
   SlashCommandBuilder,
-  ChannelType,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
   ActionRowBuilder,
-  StringSelectMenuBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  EmbedBuilder,
 } from "discord.js";
 
 export const commands = [
   new SlashCommandBuilder()
-    .setName("setup-server")
-    .setDescription("Create ModsL roles, categories, channels, rules and voice channels")
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+    .setName("setup-bot-role")
+    .setDescription("Create and assign the ModsL Bot role")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
 
   new SlashCommandBuilder()
     .setName("submit-mod")
